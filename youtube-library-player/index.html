@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Youtube library player</title>
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%
+        }
+
+        body {
+            color: #666;
+            font-family: sans-serif;
+            line-height: 1.4;
+            overflow-x: hidden
+        }
+
+        h1 {
+            color: #444;
+            font-size: 1.2em;
+            padding: 14px 2px 12px 0;
+            margin: 0;
+        }
+
+        h1 em {
+            font-style: normal;
+            color: #999;
+        }
+
+        a {
+            color: #888;
+            text-decoration: none;
+        }
+
+        #wrapper {
+            width: 670px;
+            margin: 20px auto 0 auto;
+        }
+
+        ol {
+            padding: 0;
+            margin: 0;
+            list-style: decimal-leading-zero inside;
+            color: #ccc;
+            width: 100%;
+            border-top: 1px solid #ccc;
+            font-size: 0.9em;
+        }
+
+        ol li {
+            position: relative;
+            margin: 0;
+            padding: 9px 2px 10px;
+            border-bottom: 1px solid #ccc;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        ol li a {
+            display: block;
+            text-indent: -3.3ex;
+            padding: 0 0 0 20px;
+            position: relative;
+        }
+
+        ol li a span {
+            text-align: right;
+            position: absolute;
+            right: 0
+        }
+
+        li.playing {
+            color: #aaa;
+            text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        li.playing a {
+            color: #000;
+        }
+
+        li.playing:before {
+            content: '♬';
+            width: 14px;
+            height: 14px;
+            padding: 3px;
+            line-height: 14px;
+            margin: 0;
+            position: absolute;
+            left: -24px;
+            top: 9px;
+            color: #000;
+            font-size: 13px;
+            text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.2);
+        }
+
+        #shortcuts {
+            width: 200px;
+            color: #666;
+            font-size: 0.9em;
+            background: #f3f3f3;
+            margin-bottom: 20px;
+        }
+
+        #shortcuts h1 {
+            margin: 0 0 6px;
+        }
+
+        #shortcuts p {
+            margin: 0 0 18px;
+        }
+
+        #shortcuts em {
+            font-style: normal;
+            background: #d3d3d3;
+            padding: 3px 9px;
+            -webkit-border-radius: 4px;
+            -moz-border-radius: 4px;
+            -o-border-radius: 4px;
+            border-radius: 4px;
+            -webkit-box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            -moz-box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            -o-box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            margin-right: 10px;
+        }
+
+        @media screen and (max-device-width: 480px) {
+            #wrapper {
+                position: relative;
+                left: -3%;
+            }
+
+            #shortcuts {
+                display: none;
+            }
+        }
+
+        div#filter {
+            margin-bottom: 20px
+        }
+
+        div#filter select {
+            padding: 5px;
+            width: 120px;
+            margin: 0 5px;
+            border: 1px solid silver
+        }
+
+        .sticky {
+            position: fixed;
+            top: 0;
+            background-color: white;
+            z-index: 999;
+            padding: 10px 5px;
+            margin-left: -5px;
+            border-bottom: 2px dashed silver;
+        }
+
+        h1 a {
+            padding-left: 10px;
+            font-size: 12px;
+            font-weight: normal
+        }
+
+    </style>
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/audiojs/audio.js"></script>
+    <script type="text/javascript" src="db.js"></script>
+    <script>
+        var audio;
+        var db = [], genres = [], mood = [], instruments = [];
+
+        function setVolume(vol) {
+            $('#volume').html('(' + (Math.round(vol * 100)) + ')');
+        }
+        function startPlay() {
+            $.each(genres, function (i, v) {
+                $('#genres').append('<option value="' + v + '">' + v + '</option>');
+            });
+            $.each(mood, function (i, v) {
+                $('#mood').append('<option value="' + v + '">' + v + '</option>');
+            });
+            $.each(instruments, function (i, v) {
+                $('#instruments').append('<option value="' + v + '">' + v + '</option>');
+            });
+            // Setup the player to autoplay the next track
+            var a = audiojs.createAll({
+                trackEnded: function () {
+                    var next = $('li.playing').nextAll('li:visible').first();
+                    if (!next.length) next = $('ol li:visible').first();
+                    next.addClass('playing').siblings().removeClass('playing');
+                    audio.load($('a', next).attr('data-src'));
+                    audio.play();
+                    $('#link-download').attr('href', $('a', next).attr('data-src'));
+                }
+            });
+            // Load in the first track
+            audio = a[0];
+            first = $('ol li a:first').attr('data-src');
+            $('ol li').first().addClass('playing');
+            audio.load(first);
+            setVolume(audio.element.volume);
+            $('#link-download').attr('href', first);
+        }
+
+        function loadToDb(fileVar, start) {
+            $.each(fileVar.tracks, function (i, v) {
+                if ($.inArray(v.display_genre, genres) == -1 && v.display_genre != null) genres.push(v.display_genre);
+                if ($.inArray(v.display_mood, mood) == -1 && v.display_mood != null) mood.push(v.display_mood);
+                $.each(v.instruments, function (j, item) {
+                    if ($.inArray(item, instruments) == -1 && item != null) instruments.push(item);
+                });
+                var len = parseInt(v.len);
+                var m = parseInt(len / 60);
+                m = m < 10 ? '0' + m : m;
+                var s = len - m * 60;
+                s = s < 10 ? '0' + s : s;
+                var str_len = '(' + m + ':' + s + ')';
+                db.push({
+                    artist: v.artist,
+                    title: v.title,
+                    str_len: str_len,
+                    len: v.len,
+                    genre: v.display_genre,
+                    mood: v.display_mood,
+                    instruments: v.instruments,
+                    license: v.license_type,
+                    vid: v.fp_ref_id
+                });
+                var li = $('<li>').attr('data-vid', v.fp_ref_id);
+                var a = $('<a>').attr('data-src', 'https://www.youtube.com/audiolibrary_download?vid=' + v.fp_ref_id).html(v.artist + ' - ' + v.title + '<span>' + str_len + '</span>');
+                $('ol').append(li.append(a));
+            });
+            if (start) startPlay();
+        }
+
+        $(function () {
+            if (typeof json1 != 'undefined') {
+                loadToDb(json1, false);
+                loadToDb(json2, false);
+                loadToDb(json3, true);
+            } else alert('Ошибка загрузки базы. Запустите файл update.bat для генерации базы!');
+
+            // Load in a track on click
+            $(document).on('click', 'ol li', function (e) {
+                e.preventDefault();
+                $(this).addClass('playing').siblings().removeClass('playing');
+                audio.load($('a', this).attr('data-src'));
+                audio.play();
+                $('#link-download').attr('href', audio.mp3);
+            });
+
+            // Keyboard shortcuts
+            $(document).keydown(function (e) {
+                var unicode = e.charCode ? e.charCode : e.keyCode;
+                //console.log(unicode);
+                //39 right
+                //37 left
+                //32 spacebar
+                //38 prev
+                //40 next
+                //68 download
+                //189 - volume
+                //187 + volume
+
+                if (unicode == 39) {
+                    audio.element.currentTime += 5;
+                } else if (unicode == 37) {
+                    audio.element.currentTime -= 5;
+                } else if (unicode == 32) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    audio.playPause();
+                } else if (unicode == 38) {
+                    var prev = $('li.playing').prevAll('li:visible').first();
+                    if (!prev.length) prev = $('ol li:visible').last();
+                    prev.click();
+                } else if (unicode == 40) {
+                    var next = $('li.playing').nextAll('li:visible').first();
+                    if (!next.length) next = $('ol li:visible').first();
+                    next.click();
+                } else if (unicode == 68) {
+                    window.open($('#link-download').attr('href'), '_blank');
+                } else if (unicode == 187) {
+                    if (audio.element.volume < 1) audio.element.volume += 0.05;
+                    setVolume(audio.element.volume);
+                } else if (unicode == 189) {
+                    if (audio.element.volume > 0.05) audio.element.volume -= 0.05;
+                    setVolume(audio.element.volume);
+                }
+            });
+
+            $('#filter select').change(function () {
+                var fGenre = $('#genres').val();
+                var fMood = $('#mood').val();
+                var fInstrument = $('#instruments').val();
+                var fTime = $('#time').val();
+                var fLicense = $('#license').val();
+                $.each(db, function (i, v) {
+                    var filtered = 0;
+                    if (fGenre == "" || v.genre == fGenre) filtered++;
+                    if (fMood == "" || v.mood == fMood) filtered++;
+                    if (fInstrument == "") filtered++;
+                    else {
+                        var fInstrIsset = false
+                        $.each(v.instruments, function (j, item) {
+                            if (fInstrument == item) fInstrIsset = true;
+                        });
+                        if (fInstrIsset) filtered++;
+                    }
+                    if (fTime == "") filtered++;
+                    else if (fTime == 1 && v.len < 30) filtered++;
+                    else if (fTime == 2 && v.len >= 30 && v.len < 60) filtered++;
+                    else if (fTime == 3 && v.len >= 60 && v.len < 90) filtered++;
+                    else if (fTime == 4 && v.len >= 90 && v.len < 120) filtered++;
+                    else if (fTime == 5 && v.len >= 120 && v.len < 150) filtered++;
+                    else if (fTime == 6 && v.len >= 150 && v.len < 180) filtered++;
+                    else if (fTime == 7 && v.len >= 180 && v.len < 210) filtered++;
+                    else if (fTime == 8 && v.len >= 210 && v.len < 240) filtered++;
+                    else if (fTime == 9 && v.len >= 240 && v.len < 270) filtered++;
+                    else if (fTime == 10 && v.len >= 270 && v.len < 300) filtered++;
+                    else if (fTime == 11 && v.len >= 300) filtered++;
+                    if (fLicense == "") filtered++;
+                    else if (fLicense == 0 && v.license < 3) filtered++;
+                    else if (fLicense == 1 && v.license > 2) filtered++;
+                    if (filtered == 5) $('ol li[data-vid="' + v.vid + '"]').show();
+                    else $('ol li[data-vid="' + v.vid + '"]').hide();
+                });
+                next = $('ol li:visible').first();
+                next.click();
+            });
+
+            $(window).scroll(function () {
+                var scroll = $(document).scrollTop();
+                if (scroll > 300) $('#filter').addClass('sticky');
+                else $('#filter').removeClass('sticky');
+            });
+            //
+        });
+    </script>
+</head>
+<body>
+<div id="wrapper">
+    <h1>Youtube library player <a href="https://vk.com/bulbahsan" target="_blank">author Sergey Savchenko</a></h1>
+    <div id="shortcuts">
+        <h1>Keyboard shortcuts:</h1>
+        <p><em>&larr;</em><em>&rarr;</em> -/+5 seconds</p>
+        <p><em>&uarr;</em><em>&darr;</em> previous/next track</p>
+        <p><em>-</em><em>+</em> -/+ volume <span id="volume"></span></p>
+        <p><em>Space</em> play/pause</p>
+        <p><em>d</em> download</p>
+    </div>
+    <div id="filter">
+        <select id="genres">
+            <option value="">Жанр</option>
+        </select>
+        <select id="mood">
+            <option value="">Настроение</option>
+        </select>
+        <select id="instruments">
+            <option value="">Инструмент</option>
+        </select>
+        <select id="time">
+            <option value="">Длительность</option>
+            <option value="1">< :30</option>
+            <option value="2">:30 - 1:00</option>
+            <option value="3">1:00 - 1:30</option>
+            <option value="4">1:30 - 2:00</option>
+            <option value="5">2:00 - 2:30</option>
+            <option value="6">2:30 - 3:00</option>
+            <option value="7">3:00 - 3:30</option>
+            <option value="8">3:30 - 4:00</option>
+            <option value="9">4:00 - 4:30</option>
+            <option value="10">4:30 - 5:00</option>
+            <option value="11">> 5:00</option>
+        </select>
+        <select id="license">
+            <option value="">Лицензия</option>
+            <option value="0">Указание авторства не требуется</option>
+            <option value="1">Указание авторства требуется</option>
+        </select>
+    </div>
+    <ol>
+    </ol>
+</div>
+<audio preload></audio>
+</body>
+</html>
